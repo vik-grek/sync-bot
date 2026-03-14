@@ -4,7 +4,7 @@ services:
     env_file: .env
     volumes:
       - ${CONFIG_PATH}:/config.yml:ro
-      - repos:/workspace/repos
+      - repos:/workspace
     restart: unless-stopped
 
 volumes:

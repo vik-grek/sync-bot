@@ -6,6 +6,21 @@ WORKSPACE="/workspace/repos"
 LOG_FILE="/workspace/sync-bot-errors.json"
 RESULTS_DIR="$(mktemp -d)"
 
+# --- Git identity (in case entrypoint was skipped) ---
+
+if [[ -n "${GIT_USER_NAME:-}" ]]; then
+  git config --global user.name "$GIT_USER_NAME"
+fi
+if [[ -n "${GIT_USER_EMAIL:-}" ]]; then
+  git config --global user.email "$GIT_USER_EMAIL"
+fi
+
+# --- Git auth via GH_TOKEN for HTTPS operations ---
+
+if [[ -n "${GH_TOKEN:-}" ]]; then
+  git config --global url."https://${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+fi
+
 # --- Helpers ---
 
 log() {
