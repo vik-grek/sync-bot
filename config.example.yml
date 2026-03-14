@@ -1,0 +1,7 @@
+cron: "0 0 * * *"
+
+repos:
+  - name: owner/repo-one
+    enabled: true
+  - name: owner/repo-two
+    enabled: false

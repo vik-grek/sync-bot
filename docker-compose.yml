@@ -1,0 +1,11 @@
+services:
+  syncbot:
+    build: .
+    env_file: .env
+    volumes:
+      - ${CONFIG_PATH}:/config.yml:ro
+      - repos:/workspace/repos
+    restart: unless-stopped
+
+volumes:
+  repos:
