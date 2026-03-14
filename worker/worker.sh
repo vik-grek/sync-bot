@@ -56,6 +56,14 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 1
 fi
 
+default_base=$(yq '.default_base // ""' "$CONFIG_FILE")
+
+if [[ -z "$default_base" || "$default_base" == "null" ]]; then
+  log_error "error" "" "" "default_base not set in config"
+  notify "sync-bot: default_base not set in config, aborting run"
+  exit 1
+fi
+
 repo_count=$(yq '.repos | length' "$CONFIG_FILE")
 
 if [[ -z "$repo_count" || "$repo_count" -eq 0 ]]; then
@@ -153,19 +161,39 @@ for i in $(seq 0 $((repo_count - 1))); do
         fi
       fi
 
-      # Check if base is already an ancestor of head (already up-to-date)
-      if git merge-base --is-ancestor "origin/$base_branch" HEAD 2>&1; then
-        log "    Already up-to-date"
-        echo "uptodate|#$pr_number $head_branch|already contains $base_branch" >> "$repo_results"
-        continue
+      # Determine which branches need merging into head
+      merge_branches=("$base_branch")
+
+      # If base is not the default branch, also merge it
+      if [[ "$base_branch" != "$default_base" ]]; then
+        if git rev-parse --verify "origin/$default_base" >/dev/null 2>&1; then
+          merge_branches+=("$default_base")
+        fi
       fi
 
-      # Merge the base branch
-      log "    Merging origin/$base_branch into $head_branch"
-      if ! git merge "origin/$base_branch" --no-edit -m "Merge $base_branch into $head_branch (sync-bot)" 2>&1; then
-        log_error "error" "$repo_name" "#$pr_number" "Merge conflict on $head_branch with $base_branch"
-        git merge --abort 2>/dev/null || true
-        echo "conflict|#$pr_number $head_branch|conflict merging $base_branch" >> "$repo_results"
+      merged_any=false
+
+      for merge_branch in "${merge_branches[@]}"; do
+        # Check if branch is already an ancestor of head
+        if git merge-base --is-ancestor "origin/$merge_branch" HEAD 2>&1; then
+          log "    $merge_branch already up-to-date"
+          continue
+        fi
+
+        # Merge the branch
+        log "    Merging origin/$merge_branch into $head_branch"
+        if ! git merge "origin/$merge_branch" --no-edit -m "Merge $merge_branch into $head_branch (sync-bot)" 2>&1; then
+          log_error "error" "$repo_name" "#$pr_number" "Merge conflict on $head_branch with $merge_branch"
+          git merge --abort 2>/dev/null || true
+          echo "conflict|#$pr_number $head_branch|conflict merging $merge_branch" >> "$repo_results"
+          continue 2
+        fi
+
+        merged_any=true
+      done
+
+      if [[ "$merged_any" == "false" ]]; then
+        echo "uptodate|#$pr_number $head_branch|already contains ${merge_branches[*]}" >> "$repo_results"
         continue
       fi
 
@@ -177,7 +205,7 @@ for i in $(seq 0 $((repo_count - 1))); do
       fi
 
       log "    Successfully merged and pushed"
-      echo "merged|#$pr_number $head_branch|merged $base_branch" >> "$repo_results"
+      echo "merged|#$pr_number $head_branch|merged ${merge_branches[*]}" >> "$repo_results"
     done
   ) || true  # Don't let a repo failure stop the loop
 done

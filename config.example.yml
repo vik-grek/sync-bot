@@ -1,4 +1,5 @@
 cron: "0 0 * * *"
+default_base: master
 
 repos:
   - name: owner/repo-one
