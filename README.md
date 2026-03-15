@@ -11,11 +11,11 @@ A Docker-based automation tool that periodically merges base branches into open 
 
 2. Create a `config.yml`:
    ```yaml
-   cron: "0 0 * * *"
-
    repos:
      - name: owner/repo
        enabled: true
+       default_base: master
+       cron: "0 0 * * *"
    ```
 
 3. Build and run:
@@ -31,8 +31,15 @@ A Docker-based automation tool that periodically merges base branches into open 
 | `GH_TOKEN` | `.env` | GitHub personal access token |
 | `WEBHOOK_URL` | `.env` | Google Chat webhook URL |
 | `CONFIG_PATH` | `.env` | Path to config.yml on host |
-| `cron` | `config.yml` | Cron schedule expression |
-| `repos` | `config.yml` | List of repos to sync |
+
+### Per-repo settings (`config.yml`)
+
+| Key | Required | Description |
+|---|---|---|
+| `name` | yes | GitHub repo in `owner/repo` format |
+| `enabled` | no | `true` (default) or `false` to skip |
+| `default_base` | yes | Default branch to merge into PR branches (e.g. `master`, `main`) |
+| `cron` | yes | Cron schedule expression (UTC) — each repo runs independently |
 
 ## Error Logs
 

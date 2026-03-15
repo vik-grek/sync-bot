@@ -10,7 +10,7 @@ Docker-based cron tool that merges base branches into open PR branches to keep t
 │   └── entrypoint.sh    # Container startup — validates env/config, installs crontab, runs crond
 ├── Dockerfile           # Alpine 3.19 image with dependencies
 ├── docker-compose.yml   # Single syncbot service with bind-mounted config and persistent volume
-├── config.yml           # Runtime config (gitignored) — cron schedule + repo list
+├── config.yml           # Runtime config (gitignored) — per-repo cron, default_base, enabled
 ├── config.example.yml   # Example config for reference
 ├── .env                 # Secrets (gitignored) — GH_TOKEN, WEBHOOK_URL, CONFIG_PATH
 ├── .env.example         # Example env for reference
@@ -20,6 +20,9 @@ Docker-based cron tool that merges base branches into open PR branches to keep t
 ## Key Design Decisions
 - Config is bind-mounted (not copied) so edits are live without rebuilds
 - `CONFIG_PATH` in `.env` controls the host-side mount path in docker-compose
+- Per-repo cron schedules — each repo gets its own crontab entry and runs independently
+- `default_base` is per-repo (e.g. `master` vs `main`)
+- Worker accepts optional repo index argument; without it processes all repos
 - Each repo processed in a subshell for failure isolation
 - Empty repos list is a no-op, not an error
 - Error log is a JSON array at `/workspace/sync-bot-errors.json` (persistent volume)

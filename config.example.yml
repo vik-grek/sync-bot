@@ -1,8 +1,9 @@
-cron: "0 0 * * *"
-default_base: master
-
 repos:
   - name: owner/repo-one
     enabled: true
+    default_base: master
+    cron: "0 0 * * *"
   - name: owner/repo-two
     enabled: false
+    default_base: main
+    cron: "*/30 * * * *"
