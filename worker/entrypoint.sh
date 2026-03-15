@@ -46,23 +46,41 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   log_fatal "Config file $CONFIG_FILE not found"
 fi
 
-CRON_SCHEDULE=$(yq '.cron' "$CONFIG_FILE")
-
-if [[ -z "$CRON_SCHEDULE" || "$CRON_SCHEDULE" == "null" ]]; then
-  log_fatal "No cron schedule found in $CONFIG_FILE"
-fi
-
-echo "Starting sync-bot with schedule: $CRON_SCHEDULE"
+echo "Starting sync-bot with per-repo schedules:"
 
 # Dump env vars into a file that cron can source
 env | grep -E '^(GH_TOKEN|WEBHOOK_URL|GIT_USER_NAME|GIT_USER_EMAIL|PATH)=' > /worker/env.sh
 sed -i 's/^/export /' /worker/env.sh
 
-# Build crontab entry — source env, then run worker
-CRON_LINE="$CRON_SCHEDULE . /worker/env.sh && bash /worker/worker.sh > /proc/1/fd/1 2>/proc/1/fd/2"
+# Build per-repo crontab entries
+REPO_COUNT=$(yq '.repos | length' "$CONFIG_FILE")
+CRONTAB=""
+
+for i in $(seq 0 $((REPO_COUNT - 1))); do
+  repo_name=$(yq ".repos[$i].name" "$CONFIG_FILE")
+  enabled=$(yq ".repos[$i].enabled // true" "$CONFIG_FILE")
+  cron_schedule=$(yq ".repos[$i].cron // \"\"" "$CONFIG_FILE")
+
+  if [[ "$enabled" == "false" ]]; then
+    echo "  $repo_name: disabled, skipping"
+    continue
+  fi
+
+  if [[ -z "$cron_schedule" || "$cron_schedule" == "null" ]]; then
+    echo "  WARN: $repo_name has no cron schedule, skipping"
+    continue
+  fi
+
+  CRONTAB+="$cron_schedule . /worker/env.sh && bash /worker/worker.sh $i > /proc/1/fd/1 2>/proc/1/fd/2"$'\n'
+  echo "  $repo_name: $cron_schedule"
+done
+
+if [[ -z "$CRONTAB" ]]; then
+  log_fatal "No repos with valid cron schedules found"
+fi
 
 # Install crontab
-echo "$CRON_LINE" | crontab -
+echo "$CRONTAB" | crontab -
 
 echo "Crontab installed:"
 crontab -l

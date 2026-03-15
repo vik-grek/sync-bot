@@ -71,13 +71,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 1
 fi
 
-default_base=$(yq '.default_base // ""' "$CONFIG_FILE")
-
-if [[ -z "$default_base" || "$default_base" == "null" ]]; then
-  log_error "error" "" "" "default_base not set in config"
-  notify "sync-bot: default_base not set in config, aborting run"
-  exit 1
-fi
+REPO_INDEX="${1:-}"
 
 repo_count=$(yq '.repos | length' "$CONFIG_FILE")
 
@@ -86,13 +80,20 @@ if [[ -z "$repo_count" || "$repo_count" -eq 0 ]]; then
   exit 0
 fi
 
-log "Starting sync cycle — $repo_count repo(s) configured"
+# Build list of repo indices to process
+if [[ -n "$REPO_INDEX" ]]; then
+  repo_indices=("$REPO_INDEX")
+  log "Starting sync for repo index $REPO_INDEX"
+else
+  repo_indices=($(seq 0 $((repo_count - 1))))
+  log "Starting sync cycle — $repo_count repo(s) configured"
+fi
 
 mkdir -p "$WORKSPACE"
 
 # --- Repo loop ---
 
-for i in $(seq 0 $((repo_count - 1))); do
+for i in "${repo_indices[@]}"; do
   repo_name=$(yq ".repos[$i].name" "$CONFIG_FILE")
   enabled=$(yq ".repos[$i].enabled // true" "$CONFIG_FILE")
 
@@ -105,6 +106,14 @@ for i in $(seq 0 $((repo_count - 1))); do
   if [[ "$enabled" == "false" ]]; then
     log "Repo $repo_name is disabled, skipping"
     echo "$repo_name|skipped|disabled" >> "$RESULTS_DIR/summary"
+    continue
+  fi
+
+  default_base=$(yq ".repos[$i].default_base // \"\"" "$CONFIG_FILE")
+
+  if [[ -z "$default_base" || "$default_base" == "null" ]]; then
+    log_error "warning" "$repo_name" "" "default_base not set, skipping"
+    echo "$repo_name|skipped|no default_base" >> "$RESULTS_DIR/summary"
     continue
   fi
 
@@ -232,7 +241,7 @@ log "Building summary"
 summary=""
 overall_status="ok"
 
-for i in $(seq 0 $((repo_count - 1))); do
+for i in "${repo_indices[@]}"; do
   repo_name=$(yq ".repos[$i].name" "$CONFIG_FILE")
   enabled=$(yq ".repos[$i].enabled // true" "$CONFIG_FILE")
   repo_key="$(echo "$repo_name" | tr '/' '_')"
