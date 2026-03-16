@@ -58,8 +58,12 @@ CRONTAB=""
 
 for i in $(seq 0 $((REPO_COUNT - 1))); do
   repo_name=$(yq ".repos[$i].name" "$CONFIG_FILE")
-  enabled=$(yq ".repos[$i].enabled // true" "$CONFIG_FILE")
+  enabled=$(yq ".repos[$i].enabled" "$CONFIG_FILE")
   cron_schedule=$(yq ".repos[$i].cron // \"\"" "$CONFIG_FILE")
+
+  if [[ "$enabled" != "true" && "$enabled" != "false" ]]; then
+    log_fatal "$repo_name: invalid 'enabled' value: '$enabled' (must be true or false)"
+  fi
 
   if [[ "$enabled" == "false" ]]; then
     echo "  $repo_name: disabled, skipping"

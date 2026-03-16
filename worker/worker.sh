@@ -20,6 +20,7 @@ fi
 if [[ -n "${GH_TOKEN:-}" ]]; then
   git config --global url."https://${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
 fi
+git config --global http.postBuffer 524288000
 
 # --- Helpers ---
 
@@ -95,11 +96,17 @@ mkdir -p "$WORKSPACE"
 
 for i in "${repo_indices[@]}"; do
   repo_name=$(yq ".repos[$i].name" "$CONFIG_FILE")
-  enabled=$(yq ".repos[$i].enabled // true" "$CONFIG_FILE")
+  enabled=$(yq ".repos[$i].enabled" "$CONFIG_FILE")
 
   if [[ "$repo_name" == "null" || -z "$repo_name" ]]; then
     log_error "warning" "index-$i" "" "Repo has no name, skipping"
     echo "invalid-repo-$i|skipped|no name configured" >> "$RESULTS_DIR/summary"
+    continue
+  fi
+
+  if [[ "$enabled" != "true" && "$enabled" != "false" ]]; then
+    log_error "warning" "$repo_name" "" "Invalid 'enabled' value: '$enabled' (must be true or false), skipping"
+    echo "$repo_name|skipped|invalid enabled value" >> "$RESULTS_DIR/summary"
     continue
   fi
 
@@ -124,17 +131,17 @@ for i in "${repo_indices[@]}"; do
 
     log "Processing $repo_name"
 
-    # Clone or fetch
+    # Clone once or fetch
     if [[ -d "$repo_dir/.git" ]]; then
       log "  Fetching $repo_name"
-      if ! timeout 60 git -C "$repo_dir" fetch --all --prune 2>&1; then
+      if ! timeout 120 git -C "$repo_dir" fetch --all --prune 2>&1; then
         log_error "error" "$repo_name" "" "Fetch failed"
         echo "fetch-failed" > "$repo_results"
         exit 1
       fi
     else
-      log "  Cloning $repo_name"
-      if ! timeout 120 gh repo clone "$repo_name" "$repo_dir" 2>&1; then
+      log "  Cloning $repo_name (first run)"
+      if ! timeout 300 gh repo clone "$repo_name" "$repo_dir" 2>&1; then
         log_error "error" "$repo_name" "" "Clone failed"
         echo "clone-failed" > "$repo_results"
         exit 1
@@ -243,7 +250,7 @@ overall_status="ok"
 
 for i in "${repo_indices[@]}"; do
   repo_name=$(yq ".repos[$i].name" "$CONFIG_FILE")
-  enabled=$(yq ".repos[$i].enabled // true" "$CONFIG_FILE")
+  enabled=$(yq ".repos[$i].enabled" "$CONFIG_FILE")
   repo_key="$(echo "$repo_name" | tr '/' '_')"
   repo_results="$RESULTS_DIR/$repo_key"
 
