@@ -49,8 +49,12 @@ fi
 echo "Starting sync-bot with per-repo schedules:"
 
 # Dump env vars into a file that cron can source
-env | grep -E '^(GH_TOKEN|WEBHOOK_URL|GIT_USER_NAME|GIT_USER_EMAIL|PATH)=' > /worker/env.sh
-sed -i 's/^/export /' /worker/env.sh
+# Dump env vars quoted so special characters in values are preserved
+: > /worker/env.sh
+for var in GH_TOKEN WEBHOOK_URL GIT_USER_NAME GIT_USER_EMAIL PATH; do
+  eval "val=\${$var:-}"
+  printf 'export %s=%q\n' "$var" "$val" >> /worker/env.sh
+done
 
 # Build per-repo crontab entries
 REPO_COUNT=$(yq '.repos | length' "$CONFIG_FILE")

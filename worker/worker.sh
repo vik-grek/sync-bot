@@ -134,15 +134,17 @@ for i in "${repo_indices[@]}"; do
     # Clone once or fetch
     if [[ -d "$repo_dir/.git" ]]; then
       log "  Fetching $repo_name"
-      if ! timeout 120 git -C "$repo_dir" fetch --all --prune 2>&1; then
-        log_error "error" "$repo_name" "" "Fetch failed"
+      local fetch_out
+      if ! fetch_out=$(timeout 120 git -C "$repo_dir" fetch --all --prune 2>&1); then
+        log_error "error" "$repo_name" "" "Fetch failed: $fetch_out"
         echo "fetch-failed" > "$repo_results"
         exit 1
       fi
     else
       log "  Cloning $repo_name (first run)"
-      if ! timeout 300 gh repo clone "$repo_name" "$repo_dir" 2>&1; then
-        log_error "error" "$repo_name" "" "Clone failed"
+      local clone_out
+      if ! clone_out=$(timeout 300 gh repo clone "$repo_name" "$repo_dir" 2>&1); then
+        log_error "error" "$repo_name" "" "Clone failed: $clone_out"
         echo "clone-failed" > "$repo_results"
         exit 1
       fi
