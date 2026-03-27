@@ -153,7 +153,7 @@ for i in "${repo_indices[@]}"; do
     cd "$repo_dir"
 
     # List open PRs authored by the authenticated user (not from forks)
-    pr_data=$(gh pr list --author "@me" --state open --json number,headRefName,baseRefName,headRepositoryOwner,isCrossRepository 2>&1) || {
+    pr_data=$(timeout 60 gh pr list --author "@me" --state open --json number,headRefName,baseRefName,headRepositoryOwner,isCrossRepository 2>&1) || {
       log_error "error" "$repo_name" "" "Failed to list PRs"
       echo "pr-list-failed" > "$repo_results"
       exit 1
@@ -240,7 +240,7 @@ for i in "${repo_indices[@]}"; do
       log "    Successfully merged and pushed"
       echo "merged|#$pr_number $head_branch|merged ${merge_branches[*]}" >> "$repo_results"
     done
-  ) || true  # Don't let a repo failure stop the loop
+  ) || log_error "error" "$repo_name" "" "Repo processing failed unexpectedly"
 done
 
 # --- Build notification summary ---
