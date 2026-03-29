@@ -28,4 +28,4 @@
 - Do not add `--force` to any git push
 - Do not modify or checkout base/default branches for writing
 - All network git operations must be wrapped in `timeout`
-- Each repo must be processed in its own subshell
+- Each repo must be processed in its own subshell, to ensure isolation
