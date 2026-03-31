@@ -79,7 +79,7 @@ for i in $(seq 0 $((REPO_COUNT - 1))); do
     continue
   fi
 
-  CRONTAB+="$cron_schedule . /worker/env.sh && bash /worker/worker.sh $i > /proc/1/fd/1 2>/proc/1/fd/2"$'\n'
+  CRONTAB+="$cron_schedule (. /worker/env.sh && bash /worker/worker.sh $i > /proc/1/fd/1 2>/proc/1/fd/2) &"$'\n'
   echo "  $repo_name: $cron_schedule"
 done
 
