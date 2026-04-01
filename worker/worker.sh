@@ -131,22 +131,31 @@ for i in "${repo_indices[@]}"; do
 
     log "Processing $repo_name"
 
-    # Clone once or fetch
+    # Clone once or fetch (retry once on transient network errors)
     if [[ -d "$repo_dir/.git" ]]; then
       log "  Fetching $repo_name"
       local fetch_out
       if ! fetch_out=$(timeout 120 git -C "$repo_dir" fetch --all --prune 2>&1); then
-        log_error "error" "$repo_name" "" "Fetch failed: $fetch_out"
-        echo "fetch-failed" > "$repo_results"
-        exit 1
+        log "  Fetch failed, retrying in 5s..."
+        sleep 5
+        if ! fetch_out=$(timeout 120 git -C "$repo_dir" fetch --all --prune 2>&1); then
+          log_error "error" "$repo_name" "" "Fetch failed after retry: $fetch_out"
+          echo "fetch-failed" > "$repo_results"
+          exit 1
+        fi
       fi
     else
       log "  Cloning $repo_name (first run)"
       local clone_out
       if ! clone_out=$(timeout 300 gh repo clone "$repo_name" "$repo_dir" 2>&1); then
-        log_error "error" "$repo_name" "" "Clone failed: $clone_out"
-        echo "clone-failed" > "$repo_results"
-        exit 1
+        log "  Clone failed, retrying in 5s..."
+        rm -rf "$repo_dir"
+        sleep 5
+        if ! clone_out=$(timeout 300 gh repo clone "$repo_name" "$repo_dir" 2>&1); then
+          log_error "error" "$repo_name" "" "Clone failed after retry: $clone_out"
+          echo "clone-failed" > "$repo_results"
+          exit 1
+        fi
       fi
     fi
 
