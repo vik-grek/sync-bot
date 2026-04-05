@@ -15,6 +15,7 @@ if [[ -n "${GIT_USER_EMAIL:-}" ]]; then
   git config --global user.email "$GIT_USER_EMAIL"
 fi
 
+
 # --- Git auth via GH_TOKEN for HTTPS operations ---
 
 if [[ -n "${GH_TOKEN:-}" ]]; then
@@ -145,13 +146,14 @@ for i in "${repo_indices[@]}"; do
         fi
       fi
     else
-      log "  Cloning $repo_name (first run)"
+      log "  Cloning $repo_name (first run, treeless)"
       local clone_out
-      if ! clone_out=$(timeout 300 gh repo clone "$repo_name" "$repo_dir" 2>&1); then
-        log "  Clone failed, retrying in 5s..."
+      if ! clone_out=$(timeout 300 gh repo clone "$repo_name" "$repo_dir" -- --filter=blob:none 2>&1); then
+        log "  Clone failed, retrying with larger buffer in 5s..."
         rm -rf "$repo_dir"
+        git config --global http.postBuffer 524288000
         sleep 5
-        if ! clone_out=$(timeout 300 gh repo clone "$repo_name" "$repo_dir" 2>&1); then
+        if ! clone_out=$(timeout 300 gh repo clone "$repo_name" "$repo_dir" -- --filter=blob:none 2>&1); then
           log_error "error" "$repo_name" "" "Clone failed after retry: $clone_out"
           echo "clone-failed" > "$repo_results"
           exit 1
