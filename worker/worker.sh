@@ -22,6 +22,7 @@ if [[ -n "${GH_TOKEN:-}" ]]; then
   git config --global url."https://${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
 fi
 git config --global http.postBuffer 524288000
+export GIT_TERMINAL_PROMPT=0
 
 # --- Helpers ---
 
@@ -34,6 +35,8 @@ log_error() {
   local repo="${2:-}"
   local pr="${3:-}"
   local message="${4:-}"
+  # Never persist credentials that appear in git error output
+  message=$(printf '%s' "$message" | sed -E 's#(gh[pousr]_|github_pat_)[A-Za-z0-9_]+#***#g')
   [[ -f "$LOG_FILE" ]] || echo '[]' > "$LOG_FILE"
   local tmp
   tmp=$(jq \
@@ -93,6 +96,14 @@ fi
 
 mkdir -p "$WORKSPACE"
 
+# --- Auth preflight: fail fast with a clear message instead of per-repo git errors ---
+
+if ! gh api user --jq .login >/dev/null 2>&1; then
+  log_error "error" "" "" "GitHub auth failed: GH_TOKEN is invalid, expired, or revoked"
+  notify "sync-bot: GitHub auth failed (GH_TOKEN invalid/expired), aborting run"
+  exit 1
+fi
+
 # --- Repo loop ---
 
 for i in "${repo_indices[@]}"; do
@@ -135,7 +146,7 @@ for i in "${repo_indices[@]}"; do
     # Clone once or fetch (retry once on transient network errors)
     if [[ -d "$repo_dir/.git" ]]; then
       log "  Fetching $repo_name"
-      local fetch_out
+      fetch_out=""
       if ! fetch_out=$(timeout 120 git -C "$repo_dir" fetch --all --prune 2>&1); then
         log "  Fetch failed, retrying in 5s..."
         sleep 5
@@ -147,7 +158,7 @@ for i in "${repo_indices[@]}"; do
       fi
     else
       log "  Cloning $repo_name (first run, treeless)"
-      local clone_out
+      clone_out=""
       if ! clone_out=$(timeout 300 gh repo clone "$repo_name" "$repo_dir" -- --filter=blob:none 2>&1); then
         log "  Clone failed, retrying with larger buffer in 5s..."
         rm -rf "$repo_dir"
